@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulador de llamadas - Administración</title>
+<style>
+body{font-family:Arial,sans-serif;max-width:1000px;margin:30px auto;padding:0 18px;color:#222}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.card{border:1px solid #bbb;border-radius:10px;padding:15px;margin-bottom:10px}
+button,textarea,input{font:inherit}button{padding:10px 14px;margin:4px;cursor:pointer}textarea,input{width:100%;box-sizing:border-box;padding:9px;margin:5px 0 10px}
+.muted{color:#666}.hidden{display:none}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>Simulador de llamadas — Administración</h1>
+<p>Selecciona una llamada, escúchala con auriculares y responde como si estuvieras atendiendo a un cliente o proveedor.</p>
+<div class="grid">
+<div><h2>Bandeja de entrada</h2><div id="inbox"></div></div>
+<div class="card">
+<div id="empty">Selecciona una llamada.</div>
+<div id="practice" class="hidden">
+<h2 id="subject"></h2><p id="caller" class="muted"></p>
+<button id="listen">▶ Escuchar llamada</button><button id="stop">■ Parar</button>
+<p id="status" class="muted"></p>
+<details><summary>Mostrar transcripción</summary><p id="transcript"></p></details>
+<h3>Tu respuesta</h3><textarea id="answer" rows="7"></textarea>
+<div>
+<button id="mic" type="button">🎤 Responder hablando</button>
+<button id="micStop" type="button" disabled>⏹ Detener micrófono</button>
+</div>
+<p id="micStatus" class="muted">También puedes dictar tu respuesta. La voz se convertirá en texto antes de evaluarla.</p>
+<button id="evaluate">Evaluar respuesta</button><button id="model">Ver respuesta modelo</button>
+<div id="feedback" class="card hidden"></div>
+</div></div>
+</div>
+<hr>
+<details>
+<summary><strong>Modo docente · Añadir conversación</strong></summary>
+<p><label>Asunto<input id="newSubject"></label></p>
+<p><label>Interlocutor<input id="newCaller"></label></p>
+<p><label>Texto de la llamada<textarea id="newText" rows="5"></textarea></label></p>
+<p><label>Palabras/ideas clave separadas por comas<input id="newKeys"></label></p>
+<p><label>Respuesta modelo<textarea id="newModel" rows="5"></textarea></label></p>
+<button id="add">Añadir conversación</button>
+</details>
+<script>
+let calls=[
+{s:"Cliente solicita hablar con contabilidad",c:"Ane Martínez · Cliente",d:"Básico",
+t:"Buenos días. Soy Ane Martínez, de Comercial Norte. Llamo porque recibimos una factura ayer y creo que hay un error en el importe. Necesitaría hablar con la persona de contabilidad que lleva nuestra cuenta. ¿Me puede ayudar?",
+keys:["saludo","datos","contabilidad","mensaje"],
+m:"Buenos días, Ane. Por supuesto. Para poder gestionar correctamente su consulta, ¿podría indicarme el número de factura y un teléfono de contacto? Comprobaré quién gestiona su cuenta en Contabilidad y, si no está disponible, le dejaré su mensaje para que se ponga en contacto con usted."},
+{s:"Proveedor pregunta por una factura pendiente",c:"Iker López · Proveedor",d:"Intermedio",
+t:"Hola, llamo de Suministros Lur. Tenemos pendiente de cobro la factura 4587, que venció la semana pasada. Quería saber si existe algún problema con la factura y cuándo está previsto el pago.",
+keys:["identificar","factura","comprobar","seguimiento"],
+m:"Buenos días. Gracias por facilitarnos el número de factura. Voy a registrar su consulta y comprobar con Administración el estado de la factura 4587. ¿Me confirma, por favor, su nombre y un teléfono o correo de contacto? Le daremos respuesta en cuanto hayamos revisado la incidencia."},
+{s:"Cliente molesto por un retraso",c:"Jon Etxeberria · Cliente",d:"Avanzado",
+t:"Buenos días. Llevo tres días esperando una respuesta y nadie me llama. Envié toda la documentación y necesito resolver esto hoy. No entiendo por qué tengo que volver a llamar otra vez.",
+keys:["calma","disculpa","datos","solución"],
+m:"Buenos días. Lamento la demora y entiendo su preocupación. Voy a revisar el estado de su solicitud para evitar que tenga que repetir información innecesariamente. ¿Me indica su nombre completo y la referencia del trámite? Comprobaré qué ha ocurrido y le explicaré el siguiente paso o trasladaré la incidencia a la persona responsable."}
+];
+let current=-1;
+const $=x=>document.querySelector(x);
+function render(){inbox.innerHTML="";calls.forEach((x,i)=>{let b=document.createElement("button");b.className="card";b.style.width="100%";b.innerHTML="<b>"+x.s+"</b><br><span class='muted'>"+x.c+" · "+x.d+"</span>";b.onclick=()=>openCall(i);inbox.appendChild(b)})}
+function openCall(i){current=i;let x=calls[i];empty.classList.add("hidden");practice.classList.remove("hidden");subject.textContent=x.s;caller.textContent=x.c+" · "+x.d;transcript.textContent=x.t;answer.value="";feedback.classList.add("hidden");speechSynthesis.cancel()}
+listen.onclick=()=>{if(current<0)return;let u=new SpeechSynthesisUtterance(calls[current].t);u.lang="es-ES";u.rate=.95;status.textContent="Reproduciendo…";u.onend=()=>status.textContent="Llamada finalizada.";speechSynthesis.cancel();speechSynthesis.speak(u)}
+stop.onclick=()=>{speechSynthesis.cancel();status.textContent="Reproducción detenida."}
+
+// Reconocimiento de voz (Chrome/Edge y navegadores compatibles)
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let listening = false;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = "es-ES";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+
+  recognition.onstart = () => {
+    listening = true;
+    mic.disabled = true;
+    micStop.disabled = false;
+    micStatus.textContent = "🎙 Escuchando… habla como si estuvieras atendiendo la llamada.";
+  };
+
+  recognition.onresult = (event) => {
+    let finalText = "";
+    let interimText = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const text = event.results[i][0].transcript;
+      if (event.results[i].isFinal) finalText += text + " ";
+      else interimText += text;
+    }
+    if (finalText) {
+      const previous = answer.value.trim();
+      answer.value = (previous ? previous + " " : "") + finalText.trim();
+    }
+    micStatus.textContent = interimText
+      ? "🎙 Escuchando: " + interimText
+      : "🎙 Escuchando…";
+  };
+
+  recognition.onerror = (event) => {
+    micStatus.textContent = "No se ha podido reconocer la voz (" + event.error + "). Puedes escribir la respuesta.";
+  };
+
+  recognition.onend = () => {
+    listening = false;
+    mic.disabled = false;
+    micStop.disabled = true;
+    if (answer.value.trim()) {
+      micStatus.textContent = "Dictado terminado. Revisa el texto y pulsa «Evaluar respuesta».";
+    } else {
+      micStatus.textContent = "Dictado terminado. No se ha reconocido texto.";
+    }
+  };
+
+  mic.onclick = () => {
+    if (current < 0) {
+      micStatus.textContent = "Selecciona primero una llamada.";
+      return;
+    }
+    speechSynthesis.cancel();
+    try { recognition.start(); }
+    catch(e) { micStatus.textContent = "El micrófono ya está activo o no se ha podido iniciar."; }
+  };
+
+  micStop.onclick = () => {
+    if (recognition && listening) recognition.stop();
+  };
+} else {
+  mic.disabled = true;
+  micStop.disabled = true;
+  micStatus.textContent = "El reconocimiento de voz no está disponible en este navegador. Prueba con Chrome o Edge.";
+}
+
+evaluate.onclick=()=>{if(current<0)return;let a=answer.value.toLowerCase(),x=calls[current],hits=x.keys.filter(k=>a.includes(k)).length;feedback.classList.remove("hidden");feedback.innerHTML=hits>=3?"<b>Buena respuesta.</b> Recoge varios elementos profesionales.":hits>=1?"<b>Respuesta encaminada.</b> Concreta mejor los datos, la gestión y el seguimiento.":"<b>Revisa la respuesta.</b> Acoge la llamada, solicita los datos necesarios y explica la gestión que realizarás."}
+model.onclick=()=>{if(current<0)return;feedback.classList.remove("hidden");feedback.innerHTML="<b>Respuesta modelo:</b><p>"+calls[current].m+"</p>"}
+add.onclick=()=>{let keys=newKeys.value.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);if(!newSubject.value||!newCaller.value||!newText.value||!newModel.value||!keys.length){alert("Completa todos los campos.");return}calls.push({s:newSubject.value,c:newCaller.value,d:"Personalizado",t:newText.value,keys:keys,m:newModel.value});render();newSubject.value=newCaller.value=newText.value=newKeys.value=newModel.value=""}
+render();
+</script>
+</body>
+</html>
