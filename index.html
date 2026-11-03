@@ -61,17 +61,6 @@ summary{cursor:pointer;color:var(--primary)}
 <div id="feedback" class="card hidden"></div>
 </div></div>
 </div>
-<hr>
-<details>
-<summary><strong id="teacherTitle"></strong></summary>
-<p><label><span id="lblGroup"></span><input id="newGroup" list="groupList"></label><datalist id="groupList"></datalist></p>
-<p><label><span id="lblSubject"></span><input id="newSubject"></label></p>
-<p><label><span id="lblCaller"></span><input id="newCaller"></label></p>
-<p><label><span id="lblText"></span><textarea id="newText" rows="5"></textarea></label></p>
-<p><label><span id="lblKeys"></span><input id="newKeys"></label></p>
-<p><label><span id="lblModel"></span><textarea id="newModel" rows="5"></textarea></label></p>
-<button id="addBtn"></button>
-</details>
 </main>
 <script>
 const UI={
@@ -242,10 +231,7 @@ const u=ui();document.documentElement.lang=L;
 title.textContent=u.title;langLabel.textContent=u.lang;intro.textContent=u.intro;inboxTitle.textContent=u.inbox;
 empty.textContent=u.empty;listen.textContent=u.listen;stopBtn.textContent=u.stop;transSum.textContent=u.trans;answerTitle.textContent=u.answer;
 mic.textContent=u.mic;micStop.textContent=u.micStop;evaluate.textContent=u.evaluate;modelBtn.textContent=u.model;
-teacherTitle.textContent=u.teacher;lblGroup.textContent=u.group;lblSubject.textContent=u.subject;lblCaller.textContent=u.callerL;
-lblText.textContent=u.text;lblKeys.textContent=u.keys;lblModel.textContent=u.modelL;addBtn.textContent=u.add;
 document.title=u.title;
-groupList.innerHTML="";Object.values(GROUPS[L]).forEach(g=>{let o=document.createElement("option");o.value=g;groupList.appendChild(o)});
 if(!recognition||!listening)micStatus.textContent=SR?u.micHelp:u.micNA;
 }
 function esc(s){let d=document.createElement("div");d.textContent=s;return d.innerHTML}
@@ -292,14 +278,6 @@ feedback.classList.remove("hidden");
 feedback.innerHTML=(r>=.6?u.good:r>0?u.mid:u.bad)+
 (hit.length?"<p>✅ "+u.found+esc(hit.join(", "))+"</p>":"")+(miss.length?"<p>⚠️ "+u.missing+esc(miss.join(", "))+"</p>":"")};
 modelBtn.onclick=()=>{if(current<0)return;feedback.classList.remove("hidden");feedback.innerHTML="<b>"+ui().modelT+"</b><p>"+esc(calls[current].m)+"</p>"};
-addBtn.onclick=()=>{const keys=newKeys.value.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
-if(!newSubject.value||!newCaller.value||!newText.value||!newModel.value||!keys.length){alert(ui().fill);return}
-const gv=newGroup.value.trim()||ui().custom;
-let gid=Object.keys(GROUPS[L]).find(k=>GROUPS[L][k]===gv);
-if(!gid){gid="c_"+gv;GROUPS[L][gid]=gv}
-calls.push({l:L,g:gid,d:ui().custom,s:newSubject.value,c:newCaller.value,t:newText.value,keys:keys,m:newModel.value});
-current=-1;practice.classList.add("hidden");empty.classList.remove("hidden");
-render();setText();newSubject.value=newCaller.value=newText.value=newKeys.value=newModel.value=""};
 lang.onchange=()=>{L=lang.value;speechSynthesis.cancel();if(recognition&&listening)recognition.stop();current=-1;practice.classList.add("hidden");empty.classList.remove("hidden");setText();render()};
 speechSynthesis.onvoiceschanged=()=>{};
 setText();render();
