@@ -3,141 +3,284 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Simulador de llamadas - Administración</title>
+<title>Simulador de llamadas / Telefono deien simulagailua</title>
 <style>
 body{font-family:Arial,sans-serif;max-width:1000px;margin:30px auto;padding:0 18px;color:#222}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.card{border:1px solid #bbb;border-radius:10px;padding:15px;margin-bottom:10px}
-button,textarea,input{font:inherit}button{padding:10px 14px;margin:4px;cursor:pointer}textarea,input{width:100%;box-sizing:border-box;padding:9px;margin:5px 0 10px}
+button,textarea,input,select{font:inherit}button{padding:10px 14px;margin:4px;cursor:pointer}textarea,input{width:100%;box-sizing:border-box;padding:9px;margin:5px 0 10px}
+select{padding:8px}
 .muted{color:#666}.hidden{display:none}@media(max-width:700px){.grid{grid-template-columns:1fr}}
+.top{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.callbtn{width:100%;text-align:left;background:#fff}.callbtn:hover{background:#f2f6ff}
+h3.group{margin:18px 0 6px;padding-bottom:4px;border-bottom:2px solid #3b6fd4;color:#274a94}
 </style>
 </head>
 <body>
-<h1>Simulador de llamadas — Administración</h1>
-<p>Selecciona una llamada, escúchala con auriculares y responde como si estuvieras atendiendo a un cliente o proveedor.</p>
+<div class="top">
+<h1 id="title"></h1>
+<label><span id="langLabel"></span> <select id="lang"><option value="es">Castellano</option><option value="eu">Euskara</option></select></label>
+</div>
+<p id="intro"></p>
 <div class="grid">
-<div><h2>Bandeja de entrada</h2><div id="inbox"></div></div>
+<div><h2 id="inboxTitle"></h2><div id="inbox"></div></div>
 <div class="card">
-<div id="empty">Selecciona una llamada.</div>
+<div id="empty"></div>
 <div id="practice" class="hidden">
 <h2 id="subject"></h2><p id="caller" class="muted"></p>
-<button id="listen">▶ Escuchar llamada</button><button id="stop">■ Parar</button>
-<p id="status" class="muted"></p>
-<details><summary>Mostrar transcripción</summary><p id="transcript"></p></details>
-<h3>Tu respuesta</h3><textarea id="answer" rows="7"></textarea>
+<button id="listen"></button><button id="stopBtn"></button>
+<p id="callStatus" class="muted"></p>
+<details><summary id="transSum"></summary><p id="transcript"></p></details>
+<h3 id="answerTitle"></h3><textarea id="answer" rows="7"></textarea>
 <div>
-<button id="mic" type="button">🎤 Responder hablando</button>
-<button id="micStop" type="button" disabled>⏹ Detener micrófono</button>
+<button id="mic" type="button"></button>
+<button id="micStop" type="button" disabled></button>
 </div>
-<p id="micStatus" class="muted">También puedes dictar tu respuesta. La voz se convertirá en texto antes de evaluarla.</p>
-<button id="evaluate">Evaluar respuesta</button><button id="model">Ver respuesta modelo</button>
+<p id="micStatus" class="muted"></p>
+<button id="evaluate"></button><button id="modelBtn"></button>
 <div id="feedback" class="card hidden"></div>
 </div></div>
 </div>
 <hr>
 <details>
-<summary><strong>Modo docente · Añadir conversación</strong></summary>
-<p><label>Asunto<input id="newSubject"></label></p>
-<p><label>Interlocutor<input id="newCaller"></label></p>
-<p><label>Texto de la llamada<textarea id="newText" rows="5"></textarea></label></p>
-<p><label>Palabras/ideas clave separadas por comas<input id="newKeys"></label></p>
-<p><label>Respuesta modelo<textarea id="newModel" rows="5"></textarea></label></p>
-<button id="add">Añadir conversación</button>
+<summary><strong id="teacherTitle"></strong></summary>
+<p><label><span id="lblGroup"></span><input id="newGroup" list="groupList"></label><datalist id="groupList"></datalist></p>
+<p><label><span id="lblSubject"></span><input id="newSubject"></label></p>
+<p><label><span id="lblCaller"></span><input id="newCaller"></label></p>
+<p><label><span id="lblText"></span><textarea id="newText" rows="5"></textarea></label></p>
+<p><label><span id="lblKeys"></span><input id="newKeys"></label></p>
+<p><label><span id="lblModel"></span><textarea id="newModel" rows="5"></textarea></label></p>
+<button id="addBtn"></button>
 </details>
 <script>
+const UI={
+es:{title:"Simulador de llamadas — Atención telefónica",lang:"Idioma:",
+intro:"Selecciona una llamada, escúchala con auriculares y responde como si estuvieras atendiendo la centralita de una empresa.",
+inbox:"Bandeja de entrada",empty:"Selecciona una llamada.",listen:"▶ Escuchar llamada",stop:"■ Parar",
+trans:"Mostrar transcripción",answer:"Tu respuesta",mic:"🎤 Responder hablando",micStop:"⏹ Detener micrófono",
+micHelp:"También puedes dictar tu respuesta. La voz se convertirá en texto antes de evaluarla.",
+evaluate:"Evaluar respuesta",model:"Ver respuesta modelo",playing:"Reproduciendo…",ended:"Llamada finalizada.",stopped:"Reproducción detenida.",
+noVoice:"Tu navegador no tiene voz para este idioma; lee la transcripción.",
+listening:"🎙 Escuchando… habla como si estuvieras atendiendo la llamada.",listeningIt:"🎙 Escuchando: ",listeningDots:"🎙 Escuchando…",
+micErr:"No se ha podido reconocer la voz (",micErr2:"). Puedes escribir la respuesta.",
+micDone:"Dictado terminado. Revisa el texto y pulsa «Evaluar respuesta».",micNone:"Dictado terminado. No se ha reconocido texto.",
+micPick:"Selecciona primero una llamada.",micBusy:"El micrófono ya está activo o no se ha podido iniciar.",
+micNA:"El reconocimiento de voz no está disponible en este navegador. Prueba con Chrome o Edge.",
+good:"<b>Buena respuesta.</b> Recoge varios elementos profesionales.",mid:"<b>Respuesta encaminada.</b> Concreta mejor los datos, la gestión y el seguimiento.",
+bad:"<b>Revisa la respuesta.</b> Acoge la llamada, solicita los datos necesarios y explica la gestión que realizarás.",
+found:"Elementos detectados: ",missing:"Te ha faltado: ",modelT:"Respuesta modelo:",
+teacher:"Modo docente · Añadir conversación",group:"Grupo (nuevo o existente)",subject:"Asunto",callerL:"Interlocutor",text:"Texto de la llamada",
+keys:"Ideas clave separadas por comas (usa | para sinónimos: «disculp|lamento»)",modelL:"Respuesta modelo",add:"Añadir conversación",fill:"Completa todos los campos.",custom:"Personalizado",
+levels:{1:"Básico",2:"Intermedio",3:"Avanzado"},speech:"es-ES"},
+eu:{title:"Telefono deien simulagailua — Telefono bidezko arreta",lang:"Hizkuntza:",
+intro:"Aukeratu dei bat, entzun aurikularrekin eta erantzun enpresa baten telefono-zentralita atenditzen ari bazina bezala.",
+inbox:"Sarrera-ontzia",empty:"Aukeratu dei bat.",listen:"▶ Deia entzun",stop:"■ Gelditu",
+trans:"Erakutsi transkripzioa",answer:"Zure erantzuna",mic:"🎤 Hitz eginez erantzun",micStop:"⏹ Mikrofonoa gelditu",
+micHelp:"Zure erantzuna diktatu dezakezu ere. Ahotsa testu bihurtuko da ebaluatu aurretik.",
+evaluate:"Erantzuna ebaluatu",model:"Eredu-erantzuna ikusi",playing:"Erreproduzitzen…",ended:"Deia amaitu da.",stopped:"Erreprodukzioa gelditu da.",
+noVoice:"Zure nabigatzaileak ez du hizkuntza honetarako ahotsik; irakurri transkripzioa.",
+listening:"🎙 Entzuten… hitz egin deia atenditzen ari bazina bezala.",listeningIt:"🎙 Entzuten: ",listeningDots:"🎙 Entzuten…",
+micErr:"Ezin izan da ahotsa ezagutu (",micErr2:"). Erantzuna idatz dezakezu.",
+micDone:"Diktaketa amaitu da. Berrikusi testua eta sakatu «Erantzuna ebaluatu».",micNone:"Diktaketa amaitu da. Ez da testurik ezagutu.",
+micPick:"Aukeratu lehenengo dei bat.",micBusy:"Mikrofonoa aktibo dago jada edo ezin izan da hasi.",
+micNA:"Nabigatzaile honetan ez dago ahots-ezagutzarik. Probatu Chrome edo Edge.",
+good:"<b>Erantzun ona.</b> Elementu profesional asko jasotzen ditu.",mid:"<b>Bide onetik zoaz.</b> Zehaztu hobeto datuak, kudeaketa eta jarraipena.",
+bad:"<b>Berrikusi erantzuna.</b> Jaso deia, eskatu beharrezko datuak eta azaldu egingo duzun kudeaketa.",
+found:"Detektatutako elementuak: ",missing:"Falta zaizu: ",modelT:"Eredu-erantzuna:",
+teacher:"Irakasle modua · Elkarrizketa gehitu",group:"Taldea (berria edo lehendik dagoena)",subject:"Gaia",callerL:"Solaskidea",text:"Deiaren testua",
+keys:"Ideia gakoak komaz bereizita (erabili | sinonimoetarako: «barkatu|sentitzen»)",modelL:"Eredu-erantzuna",add:"Elkarrizketa gehitu",fill:"Bete eremu guztiak.",custom:"Pertsonalizatua",
+levels:{1:"Oinarrizkoa",2:"Tartekoa",3:"Aurreratua"},speech:"eu-ES"}
+};
+const GROUPS={
+es:{recep:"1. Recepción y filtrado de llamadas",cli:"2. Atención a clientes",prov:"3. Proveedores y facturación",cita:"4. Citas y visitas",info:"5. Información general y empleo",com:"6. Llamadas comerciales y organismos oficiales",urg:"7. Urgencias e incidencias"},
+eu:{recep:"1. Deien harrera eta iragazketa",cli:"2. Bezeroen arreta",prov:"3. Hornitzaileak eta fakturazioa",cita:"4. Hitzorduak eta bisitak",info:"5. Informazio orokorra eta enplegua",com:"6. Deialdi komertzialak eta erakunde ofizialak",urg:"7. Larrialdiak eta gorabeherak"}
+};
+// keys: cada elemento es un concepto con sinónimos separados por "|"
 let calls=[
-{s:"Cliente solicita hablar con contabilidad",c:"Ane Martínez · Cliente",d:"Básico",
-t:"Buenos días. Soy Ane Martínez, de Comercial Norte. Llamo porque recibimos una factura ayer y creo que hay un error en el importe. Necesitaría hablar con la persona de contabilidad que lleva nuestra cuenta. ¿Me puede ayudar?",
-keys:["saludo","datos","contabilidad","mensaje"],
-m:"Buenos días, Ane. Por supuesto. Para poder gestionar correctamente su consulta, ¿podría indicarme el número de factura y un teléfono de contacto? Comprobaré quién gestiona su cuenta en Contabilidad y, si no está disponible, le dejaré su mensaje para que se ponga en contacto con usted."},
-{s:"Proveedor pregunta por una factura pendiente",c:"Iker López · Proveedor",d:"Intermedio",
-t:"Hola, llamo de Suministros Lur. Tenemos pendiente de cobro la factura 4587, que venció la semana pasada. Quería saber si existe algún problema con la factura y cuándo está previsto el pago.",
-keys:["identificar","factura","comprobar","seguimiento"],
-m:"Buenos días. Gracias por facilitarnos el número de factura. Voy a registrar su consulta y comprobar con Administración el estado de la factura 4587. ¿Me confirma, por favor, su nombre y un teléfono o correo de contacto? Le daremos respuesta en cuanto hayamos revisado la incidencia."},
-{s:"Cliente molesto por un retraso",c:"Jon Etxeberria · Cliente",d:"Avanzado",
+/* ===== CASTELLANO ===== */
+{l:"es",g:"recep",d:1,s:"Cliente pide hablar con una persona que no está",c:"Ane Martínez · Cliente",
+t:"Buenos días. Soy Ane Martínez, de Comercial Norte. Quería hablar con Marta Ruiz, del departamento de contabilidad, por favor.",
+keys:["buenos días|buenas tardes|bon","no está|no se encuentra|no puede ponerse|ausente","mensaje|recado|anotar","teléfono|número|contacto","devolver|llamará|volverá a llamar|se pondrá en contacto"],
+m:"Buenos días, Ane. En este momento Marta no se encuentra disponible. ¿Desea dejarle un mensaje o prefiere que le pase con otra persona de Contabilidad? Si lo desea, anoto su teléfono de contacto y el motivo de la llamada para que Marta se ponga en contacto con usted a la mayor brevedad."},
+{l:"es",g:"recep",d:2,s:"Llamante que no sabe con quién debe hablar",c:"Iker López · Particular",
+t:"Hola, mire, he recibido una carta de su empresa pero no entiendo bien qué piden. No sé con quién tengo que hablar. ¿Me puede ayudar?",
+keys:["buenos días|buenas tardes","ayudar|gustoso|encantad","carta|documento|referencia|asunto","nombre","departamento|persona|pasar|transferir|derivar"],
+m:"Buenos días. Claro que sí, con mucho gusto le ayudo. ¿Podría indicarme su nombre y el asunto o la referencia que aparece en la carta? Así podré identificar el departamento responsable y pasarle con la persona adecuada. Si no estuviera disponible, tomaré nota para que le devuelvan la llamada."},
+{l:"es",g:"cli",d:1,s:"Consulta sobre el estado de un pedido",c:"Laura Gómez · Cliente",
+t:"Buenas tardes. Hice un pedido hace una semana y todavía no ha llegado. Querría saber cuándo me lo van a entregar.",
+keys:["buenas tardes|buenos días","número de pedido|referencia|pedido","nombre|datos","comprobar|consultar|revisar","plazo|fecha|entrega|avisar"],
+m:"Buenas tardes, Laura. Voy a ayudarle con su pedido. ¿Me indica, por favor, su nombre completo y el número de pedido? Comprobaré en qué estado se encuentra y la fecha prevista de entrega. Si hubiera algún retraso, le avisaré por teléfono o correo electrónico."},
+{l:"es",g:"cli",d:3,s:"Cliente molesto por un retraso",c:"Jon Etxeberria · Cliente",
 t:"Buenos días. Llevo tres días esperando una respuesta y nadie me llama. Envié toda la documentación y necesito resolver esto hoy. No entiendo por qué tengo que volver a llamar otra vez.",
-keys:["calma","disculpa","datos","solución"],
-m:"Buenos días. Lamento la demora y entiendo su preocupación. Voy a revisar el estado de su solicitud para evitar que tenga que repetir información innecesariamente. ¿Me indica su nombre completo y la referencia del trámite? Comprobaré qué ha ocurrido y le explicaré el siguiente paso o trasladaré la incidencia a la persona responsable."}
+keys:["lamento|disculp|perdón|siento","entiendo|comprendo","nombre|datos","referencia|trámite|solicitud","solución|trasladar|responsable|comprobar|revisar"],
+m:"Buenos días. Lamento la demora y entiendo su preocupación. Voy a revisar el estado de su solicitud para evitar que tenga que repetir información innecesariamente. ¿Me indica su nombre completo y la referencia del trámite? Comprobaré qué ha ocurrido y le explicaré el siguiente paso o trasladaré la incidencia a la persona responsable."},
+{l:"es",g:"prov",d:2,s:"Proveedor pregunta por una factura pendiente",c:"Iker López · Proveedor",
+t:"Hola, llamo de Suministros Lur. Tenemos pendiente de cobro la factura 4587, que venció la semana pasada. Quería saber si existe algún problema con la factura y cuándo está previsto el pago.",
+keys:["buenos días|buenas tardes","factura","comprobar|consultar|revisar","nombre|teléfono|correo|contacto","administración|contabilidad|responsable","respuesta|llamar|informar|confirmar"],
+m:"Buenos días. Gracias por facilitarnos el número de factura. Voy a registrar su consulta y comprobar con Administración el estado de la factura 4587. ¿Me confirma, por favor, su nombre y un teléfono o correo de contacto? Le daremos respuesta en cuanto hayamos revisado la incidencia."},
+{l:"es",g:"prov",d:3,s:"Petición de cambio de cuenta bancaria (posible fraude)",c:"Carlos Vega · Dice ser proveedor",
+t:"Buenas. Soy Carlos, de Transportes Vega. Hemos cambiado de banco y necesito que a partir de hoy hagan los pagos a esta nueva cuenta. Se la dicto ahora mismo, tome nota, que tengo prisa.",
+keys:["no puedo|no estoy autorizad|no es posible|no me corresponde","seguridad|verificar|comprobar|confirmar","escrito|correo|carta|documento|formulario","administración|responsable|contabilidad","nombre|teléfono|contacto"],
+m:"Buenos días, Carlos. Por motivos de seguridad no puedo registrar un cambio de cuenta bancaria por teléfono. Este tipo de solicitudes debe enviarse por escrito, en documento firmado, al departamento de Administración, que verificará los datos con ustedes. ¿Me facilita su nombre y un teléfono de contacto para que el responsable le llame y le explique el procedimiento?"},
+{l:"es",g:"cita",d:1,s:"Solicitud de cita con la gerencia",c:"Nerea Aguirre · Cliente",
+t:"Buenos días. Me gustaría concertar una reunión con el gerente, el señor Ortiz, para hablar de un nuevo contrato. ¿Podría ser el jueves por la mañana?",
+keys:["buenos días|buenas tardes","agenda|disponibilidad|comprobar|consultar","jueves|fecha|día|hora","nombre|empresa","confirmar|correo|teléfono|contacto"],
+m:"Buenos días, Nerea. Voy a consultar la agenda del señor Ortiz para ver su disponibilidad el jueves por la mañana. ¿Me indica su nombre completo, su empresa y un teléfono o correo de contacto? Le confirmaré la cita por correo electrónico hoy mismo."},
+{l:"es",g:"cita",d:2,s:"Cancelar y aplazar una cita",c:"Mikel Sáenz · Cliente",
+t:"Hola, tenía una cita mañana a las diez con la señora Pérez, pero me ha surgido un imprevisto y no podré ir. ¿Se puede cambiar para la semana que viene?",
+keys:["no se preocupe|sin problema|entiendo","nombre|cita","agenda|disponibilidad|comprobar","propongo|propongo|opción|día|fecha|hora","confirmar|correo|teléfono|avisar"],
+m:"Buenos días, Mikel. No se preocupe, lo gestionamos sin problema. ¿Me confirma su nombre para localizar la cita de mañana a las diez? Voy a consultar la agenda de la señora Pérez y le propongo un nuevo día y hora la semana que viene. Le confirmaré el cambio por correo o teléfono."},
+{l:"es",g:"info",d:1,s:"Horario y dirección de la empresa",c:"Pedro Sanz · Particular",
+t:"Buenas tardes, quería saber en qué horario atienden al público y cuál es su dirección, que voy a pasar por allí.",
+keys:["buenas tardes|buenos días","horario|de lunes|de 9|de 8","dirección|calle|situad|ubicad","aparcamiento|transporte|llegar|referencia","ayudar|algo más|alguna otra"],
+m:"Buenas tardes. Atendemos al público de lunes a viernes, de 9:00 a 14:00 y de 15:30 a 18:00. Nos encontramos en la calle Gran Vía, número 12, junto a la parada de autobús. ¿Puedo ayudarle en algo más? Que tenga buena tarde."},
+{l:"es",g:"info",d:2,s:"Candidata que pregunta por una oferta de empleo",c:"Sara Beltrán · Candidata",
+t:"Buenos días. He visto que buscan una persona para administración y me gustaría enviar mi currículum. ¿A quién tengo que dirigirlo?",
+keys:["buenos días|buenas tardes","currículum|curriculum|cv","correo|email|e-mail|dirección","recursos humanos|personal|selección","referencia|puesto|oferta","gracias|suerte|ánimo"],
+m:"Buenos días, Sara. Gracias por su interés. Puede enviar su currículum al correo de Recursos Humanos, indicando en el asunto la referencia del puesto de administración. Si lo desea, le deletreo la dirección de correo. El departamento de selección contactará con las personas preseleccionadas. Muchas gracias y mucha suerte."},
+{l:"es",g:"com",d:2,s:"Llamada comercial no solicitada",c:"Vendedor · Telecomunicaciones Rápido",
+t:"Buenos días, le llamo de Telecom Rápido. Tenemos una oferta de telefonía e internet para empresas y quería hablar con el responsable de compras para presentársela.",
+keys:["buenos días|buenas tardes","motivo|asunto|empresa","responsable|encargado|departamento","correo|información|catálogo|documentación","contacto|teléfono|nombre|trasladar|transmitir"],
+m:"Buenos días. Gracias por su llamada. El responsable de compras no atiende llamadas comerciales directamente, pero si lo desea puede enviarnos la información por correo electrónico y la trasladaré para su valoración. ¿Me facilita su nombre, el de su empresa y un teléfono de contacto? Si hay interés, nos pondremos en contacto con ustedes."},
+{l:"es",g:"com",d:3,s:"Llamada de la Agencia Tributaria",c:"Funcionario · Agencia Tributaria",
+t:"Buenas tardes. Llamamos de la Agencia Tributaria. Tenemos un requerimiento pendiente para su empresa y necesitamos hablar con el administrador o con la persona responsable de impuestos.",
+keys:["buenas tardes|buenos días","nombre|identificar","teléfono|contacto|número","responsable|administrador|gerencia|departamento","urgente|prioridad|aviso|mensaje|trasladar","referencia|expediente|requerimiento"],
+m:"Buenas tardes. Gracias por llamar. ¿Me indica su nombre, su cargo y la referencia del requerimiento? En este momento voy a comprobar si la persona responsable está disponible; si no lo está, anoto su teléfono y la referencia y se lo traslado de inmediato como asunto prioritario para que le devuelva la llamada."},
+{l:"es",g:"urg",d:3,s:"Aviso urgente de una fuga de agua",c:"Vigilante · Seguridad del edificio",
+t:"Buenos días. Le llamo desde seguridad del edificio. Hay una fuga de agua en el almacén de su empresa y necesitamos que alguien venga cuanto antes.",
+keys:["calma|tranquil|entiendo","nombre|teléfono","avisar|trasladar|llamar","responsable|gerencia|mantenimiento|encargado","urgente|inmediato|ahora mismo|enseguida","confirmar|repetir|dirección|ubicación"],
+m:"Buenos días. Gracias por avisarnos. ¿Me confirma su nombre y un teléfono directo? Aviso ahora mismo al responsable de mantenimiento y a la gerencia por tratarse de un asunto urgente. Si pueden, cierren la llave general de agua. En cuanto avise a la persona responsable, le llamarán inmediatamente."},
+{l:"es",g:"urg",d:2,s:"Entrega de mercancía fuera de hora",c:"Repartidor · Transportes Rápidos",
+t:"Buenas. Estoy en la puerta con un palet de material para ustedes pero no hay nadie en el muelle y el albarán dice que lo reciba el señor Díaz.",
+keys:["buenos días|buenas tardes","espere|un momento|un instante","albarán|pedido|referencia","responsable|señor díaz|almacén|recepción","avisar|llamar|localizar"],
+m:"Buenas tardes. Espere un momento, por favor. Voy a localizar ahora mismo al señor Díaz y a avisar al responsable del almacén para que baje a recibir la mercancía. ¿Me confirma el número de albarán y el nombre de la empresa? Si no lo localizo en cinco minutos, le llamaré para decirle cómo proceder."},
+
+/* ===== EUSKARA ===== */
+{l:"eu",g:"recep",d:1,s:"Bezeroak ez dagoen pertsona bat nahi du",c:"Ane Martínez · Bezeroa",
+t:"Egun on. Ane Martínez naiz, Comercial Norte enpresakoa. Marta Ruiz kontabilitate-saileko arduradunarekin hitz egin nahi nuke, mesedez.",
+keys:["egun on|arratsalde on","ez dago|ez dago eskuragarri|ezin du|libre ez","mezu|oharra|apuntatu|jaso","telefono|zenbaki|harremanetan","deituko|itzuliko|jarriko"],
+m:"Egun on, Ane. Une honetan Marta ez dago eskuragarri. Mezu bat utzi nahi diozu, edo Kontabilitateko beste norbaiti pasatu nahi duzu deia? Nahi baduzu, zure telefono-zenbakia eta deiaren arrazoia apuntatuko ditut, Martak ahalik eta azkarren deitu dezan."},
+{l:"eu",g:"recep",d:2,s:"Norekin hitz egin behar duen ez dakien deitzailea",c:"Iker López · Partikularra",
+t:"Kaixo. Zuen enpresaren gutun bat jaso dut, baina ez dut ondo ulertzen zer eskatzen duten. Ez dakit norekin hitz egin behar dudan. Lagunduko al zenidake?",
+keys:["egun on|arratsalde on","lagundu|pozik|gustura","gutun|dokumentu|erreferentzia|gai","izen","saila|pertsona|pasatu|bideratu"],
+m:"Egun on. Noski, pozik lagunduko dizut. Zure izena eta gutunean agertzen den gaia edo erreferentzia esan diezadakezu? Horrela, saila identifikatu eta pertsona egokiari pasatu ahal izango dizut. Eskuragarri ez balego, oharra hartuko dut zuri deitu diezazuten."},
+{l:"eu",g:"cli",d:1,s:"Eskaera baten egoeraren kontsulta",c:"Laura Gómez · Bezeroa",
+t:"Arratsalde on. Duela astebete eskaera bat egin nuen eta oraindik ez da iritsi. Noiz entregatuko didaten jakin nahi nuke.",
+keys:["arratsalde on|egun on","eskaera-zenbaki|erreferentzia|eskaera","izen|datu","egiaztatu|begiratu|kontsultatu|berrikusi","epe|data|entrega|abisatu|jakinarazi"],
+m:"Arratsalde on, Laura. Zure eskaerarekin lagunduko dizut. Zure izen-abizenak eta eskaera-zenbakia esan diezazkidakezu, mesedez? Zein egoeratan dagoen eta aurreikusitako entrega-data begiratuko dut. Atzerapenik balego, telefonoz edo posta elektronikoz jakinaraziko dizut."},
+{l:"eu",g:"cli",d:3,s:"Atzerapenagatik haserre dagoen bezeroa",c:"Jon Etxeberria · Bezeroa",
+t:"Egun on. Hiru egun daramatzat erantzunaren zain eta inork ez nau deitzen. Dokumentazio guztia bidali nuen eta gaur bertan konpondu behar dut hau. Ez dut ulertzen zergatik deitu behar dudan berriro.",
+keys:["barkatu|sentitzen|barkamen","ulertzen","izen|datu","erreferentzia|izapide|eskaera","irtenbide|konponbide|arduradun|egiaztatu|berrikusi|bideratu"],
+m:"Egun on. Barkatu atzerapenagatik, ulertzen dut zure kezka. Zure eskaeraren egoera berrikusiko dut, informazioa behin eta berriz errepikatu behar ez izateko. Zure izen-abizenak eta izapidearen erreferentzia esan diezazkidakezu? Zer gertatu den egiaztatuko dut eta hurrengo urratsa azalduko dizut, edo arduradunari helaraziko diot gorabehera."},
+{l:"eu",g:"prov",d:2,s:"Hornitzaileak ordaintzeko dagoen faktura baten berri eskatzen du",c:"Iker López · Hornitzailea",
+t:"Kaixo, Suministros Lur enpresatik deitzen dut. 4587 faktura kobratzeke daukagu, joan den astean iraungi zen. Faktura horrekin arazorik dagoen eta noiz ordainduko den jakin nahi nuke.",
+keys:["egun on|arratsalde on","faktura","egiaztatu|kontsultatu|berrikusi","izen|telefono|posta|harremanetarako","administrazio|kontabilitate|arduradun","erantzun|deitu|jakinarazi|baieztatu"],
+m:"Egun on. Eskerrik asko faktura-zenbakia emateagatik. Zure kontsulta erregistratuko dut eta Administrazioarekin 4587 fakturaren egoera egiaztatuko dut. Zure izena eta harremanetarako telefono edo posta elektronikoa baieztatu al diezazkidakezu? Gorabehera berrikusi bezain laster erantzungo dizugu."},
+{l:"eu",g:"prov",d:3,s:"Banku-kontua aldatzeko eskaera (iruzur posiblea)",c:"Carlos Vega · Hornitzailea dela dio",
+t:"Egun on. Carlos naiz, Transportes Vega enpresakoa. Bankuz aldatu dugu eta gaurtik aurrera ordainketak kontu berri honetara egitea nahi dut. Orain bertan diktatuko dizut, hartu oharra, presa dut eta.",
+keys:["ezin dut|ez dago baimenik|ez da posible|ez zait dagokit","segurtasun|egiaztatu|baieztatu","idatziz|posta|gutun|dokumentu|inprimaki","administrazio|arduradun|kontabilitate","izen|telefono|harremanetarako"],
+m:"Egun on, Carlos. Segurtasun-arrazoiengatik ezin dut telefonoz banku-kontuaren aldaketarik erregistratu. Eskaera horiek idatziz eta sinatuta bidali behar dira Administrazio sailera, eta hark zuekin datuak egiaztatuko ditu. Zure izena eta harremanetarako telefono bat eman diezazkidakezu, arduradunak deitu eta prozedura azal dezan?"},
+{l:"eu",g:"cita",d:1,s:"Zuzendaritzarekin hitzordua eskatzea",c:"Nerea Aguirre · Bezeroa",
+t:"Egun on. Ortiz zuzendariarekin bilera bat adostu nahiko nuke, kontratu berri bati buruz hitz egiteko. Osteguneko goizean izan liteke?",
+keys:["egun on|arratsalde on","agenda|eskuragarri|egiaztatu|kontsultatu","ostegun|data|egun|ordu","izen|enpresa","baieztatu|posta|telefono|harremanetarako"],
+m:"Egun on, Nerea. Ortiz jaunaren agenda kontsultatuko dut, osteguneko goizean libre dagoen ikusteko. Zure izen-abizenak, enpresa eta harremanetarako telefono edo posta elektronikoa esan diezazkidakezu? Hitzordua gaur bertan baieztatuko dizut posta elektronikoz."},
+{l:"eu",g:"cita",d:2,s:"Hitzordu bat bertan behera utzi eta atzeratzea",c:"Mikel Sáenz · Bezeroa",
+t:"Kaixo. Bihar goizeko hamarretan hitzordua nuen Pérez andrearekin, baina ustekabeko bat gertatu zait eta ezin naiz joan. Datorren astera aldatu al daiteke?",
+keys:["ez kezkatu|arazorik gabe|ulertzen","izen|hitzordu","agenda|eskuragarri|egiaztatu","proposatu|aukera|egun|data|ordu","baieztatu|posta|telefono|jakinarazi"],
+m:"Egun on, Mikel. Ez kezkatu, arazorik gabe kudeatuko dugu. Zure izena baieztatu al diezazkidakezu biharko hamarretako hitzordua aurkitzeko? Pérez andrearen agenda kontsultatuko dut eta datorren asterako egun eta ordu berri bat proposatuko dizut. Aldaketa posta elektronikoz edo telefonoz baieztatuko dizut."},
+{l:"eu",g:"info",d:1,s:"Enpresaren ordutegia eta helbidea",c:"Pedro Sanz · Partikularra",
+t:"Arratsalde on. Jendea zein ordutegitan hartzen duzuen eta zein den zuen helbidea jakin nahi nuke, joango naiz-eta.",
+keys:["arratsalde on|egun on","ordutegi|astelehen","helbide|kale|dago","aparkaleku|garraio|iristeko|erreferentzia","lagundu|beste|besterik"],
+m:"Arratsalde on. Jendea astelehenetik ostiralera hartzen dugu, 9:00etatik 14:00etara eta 15:30etik 18:00etara. Gran Via kaleko 12. zenbakian gaude, autobus-geltokiaren ondoan. Beste zerbaitetan lagundu diezazuket? Arratsalde on."},
+{l:"eu",g:"info",d:2,s:"Lan-eskaintza baten berri eskatzen duen hautagaia",c:"Sara Beltrán · Hautagaia",
+t:"Egun on. Administraziorako pertsona bat bilatzen duzuela ikusi dut eta nire curriculuma bidali nahiko nuke. Nori zuzendu behar diot?",
+keys:["egun on|arratsalde on","curriculum|cv","posta|helbide|e-mail","giza baliabide|langile|hautaketa","erreferentzia|lanpostu|eskaintza","eskerrik asko|zorte|animo"],
+m:"Egun on, Sara. Eskerrik asko zure interesagatik. Curriculuma Giza Baliabideen posta elektronikora bidal dezakezu, gaian administrazio-lanpostuaren erreferentzia adieraziz. Nahi baduzu, helbide elektronikoa letraz letra esango dizut. Hautaketa-sailak aurre-hautatutako pertsonekin jarriko du harremanetan. Eskerrik asko eta zorte on."},
+{l:"eu",g:"com",d:2,s:"Eskatu gabeko deialdi komertziala",c:"Saltzailea · Telekomunikazio Azkarra",
+t:"Egun on, Telecom Azkarra enpresatik deitzen dut. Enpresentzako telefonia eta interneteko eskaintza bat dugu eta erosketa-arduradunarekin hitz egin nahi nuke aurkezteko.",
+keys:["egun on|arratsalde on","arrazoi|gai|enpresa","arduradun|saila","posta|informazio|katalogo|dokumentazio","harremanetarako|telefono|izen|helarazi"],
+m:"Egun on. Eskerrik asko deitzeagatik. Erosketa-arduradunak ez ditu deialdi komertzialak zuzenean hartzen, baina nahi baduzu informazioa posta elektronikoz bidal diezaguke eta balioesteko helaraziko dut. Zure izena, zure enpresaren izena eta harremanetarako telefono bat eman diezazkidakezu? Interesik balego, zuekin harremanetan jarriko gara."},
+{l:"eu",g:"com",d:3,s:"Ogasunaren deia",c:"Funtzionarioa · Zerga Agentzia",
+t:"Arratsalde on. Zerga Agentziatik deitzen dugu. Zuen enpresarentzat errekerimendu bat dugu zain eta administratzailearekin edo zergen arduradunarekin hitz egin behar dugu.",
+keys:["arratsalde on|egun on","izen|identifikatu","telefono|harremanetarako|zenbaki","arduradun|administratzaile|zuzendaritza|saila","presazko|lehentasun|abisu|mezu|helarazi","erreferentzia|espediente|errekerimendu"],
+m:"Arratsalde on. Eskerrik asko deitzeagatik. Zure izena, kargua eta errekerimenduaren erreferentzia esan diezazkidakezu? Arduraduna eskuragarri dagoen egiaztatuko dut; eskuragarri ez balego, zure telefonoa eta erreferentzia apuntatuko ditut eta berehala helaraziko diot, lehentasunezko gaia baita, zuri dei diezazun."},
+{l:"eu",g:"urg",d:3,s:"Ur-ihesaren abisu presazkoa",c:"Zaintzailea · Eraikinaren segurtasuna",
+t:"Egun on. Eraikinaren segurtasunetik deitzen dizut. Zuen enpresaren biltegian ur-ihesa dago eta norbaitek ahalik eta azkarren etorri behar du.",
+keys:["lasai|ulertzen","izen|telefono","abisatu|helarazi|deitu","arduradun|zuzendaritza|mantentze|arduradun","presazko|berehala|orain bertan|segituan","baieztatu|errepikatu|helbide|kokaleku"],
+m:"Egun on. Eskerrik asko abisatzeagatik. Zure izena eta telefono zuzena baieztatu al diezazkidakezu? Orain bertan abisatuko diet mantentze-arduradunari eta zuzendaritzari, gai presazkoa baita. Ahal baduzue, itxi ur-giltza orokorra. Arduraduna abisatu bezain laster, berehala deituko dizute."},
+{l:"eu",g:"urg",d:2,s:"Orduz kanpoko salgaien entrega",c:"Banatzailea · Garraio Azkarrak",
+t:"Egun on. Zuen ate aurrean nago material-paleta batekin, baina ez dago inor kaian eta albaranak dio Díaz jaunak jaso behar duela.",
+keys:["egun on|arratsalde on","itxaron|une bat|momentu bat","albaran|eskaera|erreferentzia","arduradun|díaz|biltegi|harrera","abisatu|deitu|aurkitu"],
+m:"Arratsalde on. Itxaron une bat, mesedez. Orain bertan Díaz jauna aurkituko dut eta biltegiko arduradunari abisatuko diot, jaitsi eta salgaia jaso dezan. Albaran-zenbakia eta enpresaren izena baieztatu al diezazkidakezu? Bost minututan aurkitzen ez badut, deituko dizut zer egin behar duzun esateko."}
 ];
-let current=-1;
 const $=x=>document.querySelector(x);
-function render(){inbox.innerHTML="";calls.forEach((x,i)=>{let b=document.createElement("button");b.className="card";b.style.width="100%";b.innerHTML="<b>"+x.s+"</b><br><span class='muted'>"+x.c+" · "+x.d+"</span>";b.onclick=()=>openCall(i);inbox.appendChild(b)})}
-function openCall(i){current=i;let x=calls[i];empty.classList.add("hidden");practice.classList.remove("hidden");subject.textContent=x.s;caller.textContent=x.c+" · "+x.d;transcript.textContent=x.t;answer.value="";feedback.classList.add("hidden");speechSynthesis.cancel()}
-listen.onclick=()=>{if(current<0)return;let u=new SpeechSynthesisUtterance(calls[current].t);u.lang="es-ES";u.rate=.95;status.textContent="Reproduciendo…";u.onend=()=>status.textContent="Llamada finalizada.";speechSynthesis.cancel();speechSynthesis.speak(u)}
-stop.onclick=()=>{speechSynthesis.cancel();status.textContent="Reproducción detenida."}
+let current=-1,L="es";
+const ui=()=>UI[L];
+function setText(){
+const u=ui();document.documentElement.lang=L;
+title.textContent=u.title;langLabel.textContent=u.lang;intro.textContent=u.intro;inboxTitle.textContent=u.inbox;
+empty.textContent=u.empty;listen.textContent=u.listen;stopBtn.textContent=u.stop;transSum.textContent=u.trans;answerTitle.textContent=u.answer;
+mic.textContent=u.mic;micStop.textContent=u.micStop;evaluate.textContent=u.evaluate;modelBtn.textContent=u.model;
+teacherTitle.textContent=u.teacher;lblGroup.textContent=u.group;lblSubject.textContent=u.subject;lblCaller.textContent=u.callerL;
+lblText.textContent=u.text;lblKeys.textContent=u.keys;lblModel.textContent=u.modelL;addBtn.textContent=u.add;
+document.title=u.title;
+groupList.innerHTML="";Object.values(GROUPS[L]).forEach(g=>{let o=document.createElement("option");o.value=g;groupList.appendChild(o)});
+if(!recognition||!listening)micStatus.textContent=SR?u.micHelp:u.micNA;
+}
+function esc(s){let d=document.createElement("div");d.textContent=s;return d.innerHTML}
+function lvl(x){return ui().levels[x.d]||x.d}
+function render(){
+inbox.innerHTML="";
+Object.keys(GROUPS[L]).forEach(g=>{
+const items=calls.map((x,i)=>[x,i]).filter(([x])=>x.l===L&&x.g===g);
+if(!items.length)return;
+let h=document.createElement("h3");h.className="group";h.textContent=GROUPS[L][g];inbox.appendChild(h);
+items.forEach(([x,i])=>{let b=document.createElement("button");b.className="card callbtn";
+b.innerHTML="<b>"+esc(x.s)+"</b><br><span class='muted'>"+esc(x.c)+" · "+esc(lvl(x))+"</span>";
+b.onclick=()=>openCall(i);inbox.appendChild(b)})})}
+function openCall(i){current=i;let x=calls[i];empty.classList.add("hidden");practice.classList.remove("hidden");subject.textContent=x.s;caller.textContent=x.c+" · "+lvl(x);transcript.textContent=x.t;answer.value="";callStatus.textContent="";feedback.classList.add("hidden");speechSynthesis.cancel()}
+listen.onclick=()=>{if(current<0)return;let u=new SpeechSynthesisUtterance(calls[current].t);u.lang=ui().speech;u.rate=.95;
+let v=speechSynthesis.getVoices().some(v=>v.lang.toLowerCase().startsWith(L));
+callStatus.textContent=v||!speechSynthesis.getVoices().length?ui().playing:ui().noVoice;
+u.onend=()=>callStatus.textContent=ui().ended;speechSynthesis.cancel();speechSynthesis.speak(u)};
+stopBtn.onclick=()=>{speechSynthesis.cancel();callStatus.textContent=ui().stopped};
 
 // Reconocimiento de voz (Chrome/Edge y navegadores compatibles)
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
-let listening = false;
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+let recognition=null,listening=false;
+if(SR){
+recognition=new SR();recognition.continuous=true;recognition.interimResults=true;
+recognition.onstart=()=>{listening=true;mic.disabled=true;micStop.disabled=false;micStatus.textContent=ui().listening};
+recognition.onresult=e=>{let f="",im="";
+for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;if(e.results[i].isFinal)f+=t+" ";else im+=t}
+if(f){const p=answer.value.trim();answer.value=(p?p+" ":"")+f.trim()}
+micStatus.textContent=im?ui().listeningIt+im:ui().listeningDots};
+recognition.onerror=e=>{micStatus.textContent=ui().micErr+e.error+ui().micErr2};
+recognition.onend=()=>{listening=false;mic.disabled=false;micStop.disabled=true;micStatus.textContent=answer.value.trim()?ui().micDone:ui().micNone};
+mic.onclick=()=>{if(current<0){micStatus.textContent=ui().micPick;return}
+speechSynthesis.cancel();recognition.lang=ui().speech;
+try{recognition.start()}catch(e){micStatus.textContent=ui().micBusy}};
+micStop.onclick=()=>{if(recognition&&listening)recognition.stop()};
+}else{mic.disabled=true;micStop.disabled=true}
 
-if (SpeechRecognition) {
-  recognition = new SpeechRecognition();
-  recognition.lang = "es-ES";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-
-  recognition.onstart = () => {
-    listening = true;
-    mic.disabled = true;
-    micStop.disabled = false;
-    micStatus.textContent = "🎙 Escuchando… habla como si estuvieras atendiendo la llamada.";
-  };
-
-  recognition.onresult = (event) => {
-    let finalText = "";
-    let interimText = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const text = event.results[i][0].transcript;
-      if (event.results[i].isFinal) finalText += text + " ";
-      else interimText += text;
-    }
-    if (finalText) {
-      const previous = answer.value.trim();
-      answer.value = (previous ? previous + " " : "") + finalText.trim();
-    }
-    micStatus.textContent = interimText
-      ? "🎙 Escuchando: " + interimText
-      : "🎙 Escuchando…";
-  };
-
-  recognition.onerror = (event) => {
-    micStatus.textContent = "No se ha podido reconocer la voz (" + event.error + "). Puedes escribir la respuesta.";
-  };
-
-  recognition.onend = () => {
-    listening = false;
-    mic.disabled = false;
-    micStop.disabled = true;
-    if (answer.value.trim()) {
-      micStatus.textContent = "Dictado terminado. Revisa el texto y pulsa «Evaluar respuesta».";
-    } else {
-      micStatus.textContent = "Dictado terminado. No se ha reconocido texto.";
-    }
-  };
-
-  mic.onclick = () => {
-    if (current < 0) {
-      micStatus.textContent = "Selecciona primero una llamada.";
-      return;
-    }
-    speechSynthesis.cancel();
-    try { recognition.start(); }
-    catch(e) { micStatus.textContent = "El micrófono ya está activo o no se ha podido iniciar."; }
-  };
-
-  micStop.onclick = () => {
-    if (recognition && listening) recognition.stop();
-  };
-} else {
-  mic.disabled = true;
-  micStop.disabled = true;
-  micStatus.textContent = "El reconocimiento de voz no está disponible en este navegador. Prueba con Chrome o Edge.";
-}
-
-evaluate.onclick=()=>{if(current<0)return;let a=answer.value.toLowerCase(),x=calls[current],hits=x.keys.filter(k=>a.includes(k)).length;feedback.classList.remove("hidden");feedback.innerHTML=hits>=3?"<b>Buena respuesta.</b> Recoge varios elementos profesionales.":hits>=1?"<b>Respuesta encaminada.</b> Concreta mejor los datos, la gestión y el seguimiento.":"<b>Revisa la respuesta.</b> Acoge la llamada, solicita los datos necesarios y explica la gestión que realizarás."}
-model.onclick=()=>{if(current<0)return;feedback.classList.remove("hidden");feedback.innerHTML="<b>Respuesta modelo:</b><p>"+calls[current].m+"</p>"}
-add.onclick=()=>{let keys=newKeys.value.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);if(!newSubject.value||!newCaller.value||!newText.value||!newModel.value||!keys.length){alert("Completa todos los campos.");return}calls.push({s:newSubject.value,c:newCaller.value,d:"Personalizado",t:newText.value,keys:keys,m:newModel.value});render();newSubject.value=newCaller.value=newText.value=newKeys.value=newModel.value=""}
-render();
+evaluate.onclick=()=>{if(current<0)return;const u=ui(),x=calls[current],a=answer.value.toLowerCase();
+const hit=[],miss=[];
+x.keys.forEach(k=>{(k.split("|").some(s=>a.includes(s.trim()))?hit:miss).push(k.split("|")[0])});
+const r=hit.length/x.keys.length;
+feedback.classList.remove("hidden");
+feedback.innerHTML=(r>=.6?u.good:r>0?u.mid:u.bad)+
+(hit.length?"<p>✅ "+u.found+esc(hit.join(", "))+"</p>":"")+(miss.length?"<p>⚠️ "+u.missing+esc(miss.join(", "))+"</p>":"")};
+modelBtn.onclick=()=>{if(current<0)return;feedback.classList.remove("hidden");feedback.innerHTML="<b>"+ui().modelT+"</b><p>"+esc(calls[current].m)+"</p>"};
+addBtn.onclick=()=>{const keys=newKeys.value.split(",").map(x=>x.trim().toLowerCase()).filter(Boolean);
+if(!newSubject.value||!newCaller.value||!newText.value||!newModel.value||!keys.length){alert(ui().fill);return}
+const gv=newGroup.value.trim()||ui().custom;
+let gid=Object.keys(GROUPS[L]).find(k=>GROUPS[L][k]===gv);
+if(!gid){gid="c_"+gv;GROUPS[L][gid]=gv}
+calls.push({l:L,g:gid,d:ui().custom,s:newSubject.value,c:newCaller.value,t:newText.value,keys:keys,m:newModel.value});
+current=-1;practice.classList.add("hidden");empty.classList.remove("hidden");
+render();setText();newSubject.value=newCaller.value=newText.value=newKeys.value=newModel.value=""};
+lang.onchange=()=>{L=lang.value;speechSynthesis.cancel();if(recognition&&listening)recognition.stop();current=-1;practice.classList.add("hidden");empty.classList.remove("hidden");setText();render()};
+speechSynthesis.onvoiceschanged=()=>{};
+setText();render();
 </script>
 </body>
 </html>
